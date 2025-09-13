@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Quiz de Competências Digitais </title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/modern-normalize/1.1.0/modern-normalize.min.css" integrity="" crossorigin="anonymous">
+  <style>
+    :root{--bg:#0f172a;--card:#0b1220;--muted:#94a3b8;--accent:#06b6d4;--glass: rgba(255,255,255,0.03)}
+    body{font-family:Inter,ui-sans-serif,system-ui,Segoe UI,Roboto,"Helvetica Neue",Arial; background:linear-gradient(180deg,#071129 0%, #041025 100%); color:#e6eef8; padding:24px}
+    .container{max-width:980px;margin:0 auto}
+    header{display:flex;gap:16px;align-items:center;margin-bottom:18px}
+    h1{font-size:20px;margin:0}
+    p.lead{color:var(--muted);margin:0}
+    .card{background:var(--card);padding:18px;border-radius:12px;box-shadow:0 6px 24px rgba(2,6,23,0.6);margin-bottom:16px}
+    .grid{display:grid;grid-template-columns:1fr;gap:12px}
+    .q{background:var(--glass);padding:12px;border-radius:8px}
+    .q h3{margin:0 0 8px 0;font-size:15px}
+    .options{display:flex;gap:8px;flex-wrap:wrap}
+    label.opt{display:inline-flex;align-items:center;gap:8px;background:transparent;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);cursor:pointer}
+    input[type=radio]{accent-color:var(--accent)}
+    footer.actions{display:flex;gap:8px;justify-content:flex-end}
+    button{background:linear-gradient(90deg,var(--accent),#0891b2);border:none;color:#021124;padding:10px 14px;border-radius:10px;font-weight:600;cursor:pointer}
+    button.secondary{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted)}
+    .results{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap}
+    .result-card{flex:1;min-width:260px}
+    canvas{background:transparent}
+    .small{font-size:13px;color:var(--muted)}
+    .score{font-size:18px;font-weight:700}
+    .badge{display:inline-block;padding:6px 8px;border-radius:999px;background:rgba(255,255,255,0.03);font-weight:600}
+    @media(min-width:900px){.grid{grid-template-columns:1fr 360px}}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1>DigComp — Quiz de Competências Digitais (Protótipo)</h1>
+        <p class="lead">Responda livremente. Cada pergunta tem 3 níveis: Iniciante (1), Intermediário (2) e Avançado (3).</p>
+      </div>
+    </header>
+
+    <form id="quizForm" class="card">
+      <div class="grid">
+        <section id="questions">
+          <!-- Questions will be injected here -->
+        </section>
+
+        <aside class="card" style="height:100%">
+          <h3>Instruções rápidas</h3>
+          <p class="small">São 21 perguntas — 1 para cada competência do DigComp. Ao enviar, o protótipo calcula a média por área (1 a 5) e mostra seu perfil com um gráfico radar e recomendações simples.</p>
+          <div style="margin-top:12px" class="small">
+            <strong>Mapeamento (perguntas):</strong>
+            <ul class="small">
+              <li>Área 1: perguntas 1–3</li>
+              <li>Área 2: perguntas 4–9</li>
+              <li>Área 3: perguntas 10–13</li>
+              <li>Área 4: perguntas 14–17</li>
+              <li>Área 5: perguntas 18–21</li>
+            </ul>
+          </div>
+
+          <div style="margin-top:14px" class="small">
+            <strong>Interpretação de médias:</strong>
+            <div class="small">1.00–1.66 = Iniciante | 1.67–2.33 = Intermediário | 2.34–3.00 = Avançado</div>
+          </div>
+
+          <footer class="actions" style="margin-top:14px">
+            <button type="button" id="submitBtn">Calcular perfil</button>
+            <button type="button" class="secondary" id="resetBtn">Resetar</button>
+          </footer>
+        </aside>
+      </div>
+    </form>
+
+    <section id="output" style="display:none;margin-top:12px">
+      <div class="results">
+        <div class="card result-card">
+          <h3>Resultado</h3>
+          <p class="small">Média por área e nível estimado</p>
+          <div id="areaScores"></div>
+          <div style="margin-top:8px"><strong>Média geral:</strong> <span id="overall" class="score"></span></div>
+        </div>
+
+        <div class="card" style="min-width:360px;max-width:480px">
+          <h3>Gráfico Radar</h3>
+          <canvas id="radarChart" width="400" height="300"></canvas>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:12px">
+        <h3>Recomendações rápidas</h3>
+        <div id="recommendations" class="small"></div>
+      </div>
+    </section>
+
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    // Questions (21) mapped to competencies and areas
+    const questions = [
+      {id: 'q1', area:1, prompt: 'Quando preciso encontrar informações na internet, eu...'},
+      {id: 'q2', area:1, prompt: 'Ao encontrar uma notícia online, eu...'},
+      {id: 'q3', area:1, prompt: 'Como costumo organizar arquivos e informações digitais?'} ,
+
+      {id: 'q4', area:2, prompt: 'Quando preciso falar com colegas, eu...'},
+      {id: 'q5', area:2, prompt: 'Quando compartilho arquivos, eu...'},
+      {id: 'q6', area:2, prompt: 'Com relação a serviços digitais do governo (e-Gov), eu...'},
+      {id: 'q7', area:2, prompt: 'Num trabalho em grupo online, eu...'},
+      {id: 'q8', area:2, prompt: 'Quando participo de discussões online, eu...'},
+      {id: 'q9', area:2, prompt: 'Sobre minha presença online (identidade digital)...'},
+
+      {id: 'q10', area:3, prompt: 'Com relação a criar conteúdos digitais (textos, imagens, vídeos)...'},
+      {id: 'q11', area:3, prompt: 'Quando encontro materiais úteis online...'},
+      {id: 'q12', area:3, prompt: 'Se preciso usar uma imagem para um trabalho, eu...'},
+      {id: 'q13', area:3, prompt: 'Sobre programação, eu...'},
+
+      {id: 'q14', area:4, prompt: 'Quanto à segurança do meu dispositivo...'},
+      {id: 'q15', area:4, prompt: 'Quando um site pede meus dados pessoais...'},
+      {id: 'q16', area:4, prompt: 'Com relação ao uso de tecnologia e bem-estar...'},
+      {id: 'q17', area:4, prompt: 'Sobre o impacto ambiental do uso de tecnologia...'},
+
+      {id: 'q18', area:5, prompt: 'Quando meu computador ou celular dá problema...'},
+      {id: 'q19', area:5, prompt: 'Se preciso de uma ferramenta digital nova...'},
+      {id: 'q20', area:5, prompt: 'Quando enfrento um desafio digital, eu...'},
+      {id: 'q21', area:5, prompt: 'Sobre meu desenvolvimento digital...'}
+    ];
+
+    const optionsText = [
+      // for each question, define option text for values 1,2,3
+      ['Digito qualquer coisa no Google e clico no primeiro link.', 'Uso palavras-chave e comparo diferentes sites.', 'Utilizo operadores de busca avançada, filtros e bases confiáveis.'],
+      ['Confio logo no que está escrito.', 'Vejo se outros sites também falam sobre o assunto.', 'Investigo a fonte, verifico dados e busco evidências adicionais.'],
+      ['Deixo tudo espalhado no celular ou computador.', 'Uso pastas e nomes razoáveis, mas às vezes me perco.', 'Estruturo com pastas, etiquetas, nuvem e backup organizado.'],
+
+      ['Uso apenas WhatsApp.', 'Uso WhatsApp e e-mail conforme a situação.', 'Escolho a plataforma adequada (e-mail, chat, fórum, videoconferência) de acordo com o contexto.'],
+      ['Mando de qualquer jeito (sem cuidado com tamanho ou formato).', 'Compacto ou uso links do Google Drive/WeTransfer.', 'Além disso, cito a fonte e respeito boas práticas de partilha.'],
+      ['Nunca usei ou não sei usar.', 'Já utilizei para resolver algo simples (impostos, documentos).', 'Uso com frequência e oriento outras pessoas a usarem também.'],
+      ['Prefiro enviar arquivos por WhatsApp e cada um faz sua parte.', 'Uso ferramentas colaborativas (Google Docs, Trello).', 'Crio ambientes colaborativos organizados e ajudo os outros a trabalhar junto.'],
+      ['Escrevo de qualquer jeito e às vezes sem pensar.', 'Tento ser respeitoso, mas não adapto muito minha linguagem.', 'Respeito regras de etiqueta digital, adapto linguagem e considero a diversidade.'],
+      ['Nunca penso nisso, tenho perfis soltos.', 'Tento cuidar um pouco, mas não planejo muito.', 'Gerencio ativamente minha reputação e cuido dos dados que produzo.'],
+
+      ['Apenas consumo, não produzo.', 'Produzo coisas simples (textos, apresentações básicas).', 'Produzo conteúdos variados e criativos (edição de vídeo, design, sites).'],
+      ['Uso tal como estão, sem mudar nada.', 'Adapto um pouco (resumo, traduzo, combino ideias).', 'Recrio e integro em algo novo, acrescentando valor próprio.'],
+      ['Pego qualquer uma do Google.', 'Tento dar crédito ao autor.', 'Procuro imagens com licença livre (Creative Commons) ou crio minhas próprias.'],
+      ['Nunca programei.', 'Já fiz algo simples (scratch, scripts básicos, planilhas com fórmulas).', 'Sei desenvolver soluções programadas para resolver problemas.'],
+
+      ['Não uso antivírus nem faço atualizações.', 'Tenho antivírus ou atualizações automáticas.', 'Mantenho backups, autenticação de dois fatores e boas práticas de proteção.'],
+      ['Entrego sem pensar.', 'Dou apenas o básico, mas raramente leio políticas de privacidade.', 'Avalio sempre antes, limito permissões e uso ferramentas de proteção.'],
+      ['Fico online sem controle, já prejudiquei minha saúde/sono.', 'Tento equilibrar, mas às vezes exagero.', 'Estabeleço limites de tempo, evito riscos e cuido do bem-estar digital.'],
+      ['Nunca pensei nisso.', 'Tento economizar energia e descartar equipamentos corretamente.', 'Busco ativamente soluções sustentáveis e incentivo outros a fazerem o mesmo.'],
+
+      ['Espero alguém resolver por mim.', 'Tento pesquisar tutoriais e resolver sozinho.', 'Consigo resolver e até ajudar outros a corrigirem problemas.'],
+      ['Uso qualquer coisa que me indiquem.', 'Pesquiso opções e escolho a que parece melhor.', 'Analiso diferentes ferramentas, comparo recursos e escolho a mais adequada.'],
+      ['Uso as ferramentas sempre do mesmo jeito.', 'Tento combinar recursos de forma diferente.', 'Crio soluções inovadoras, novas formas de usar a tecnologia.'],
+      ['Nunca pensei em melhorar minhas competências.', 'Já percebi que preciso aprender mais em algumas áreas.', 'Estou sempre me atualizando e ajudando outros a se desenvolverem.']
+    ];
+
+    // build UI
+    const qContainer = document.getElementById('questions');
+    questions.forEach((q, idx) => {
+      const wrapper = document.createElement('div'); wrapper.className='q';
+      const h = document.createElement('h3'); h.textContent = `${idx+1}. ${q.prompt}`;
+      wrapper.appendChild(h);
+      const opts = document.createElement('div'); opts.className='options';
+      for(let val=1; val<=3; val++){
+        const id = `${q.id}_opt${val}`;
+        const label = document.createElement('label'); label.className='opt'; label.htmlFor = id;
+        const input = document.createElement('input'); input.type='radio'; input.name=q.id; input.id=id; input.value=val;
+        const span = document.createElement('span'); span.textContent = optionsText[idx][val-1];
+        label.appendChild(input); label.appendChild(span);
+        opts.appendChild(label);
+      }
+      wrapper.appendChild(opts);
+      qContainer.appendChild(wrapper);
+    });
+
+    // helper: read selections
+    function readAnswers(){
+      const answers = {};
+      for(const q of questions){
+        const sel = document.querySelector(`input[name="${q.id}"]:checked`);
+        answers[q.id] = sel ? Number(sel.value) : null;
+      }
+      return answers;
+    }
+
+    function computeScores(answers){
+      const areas = {1:[],2:[],3:[],4:[],5:[]};
+      for(const q of questions){
+        const v = answers[q.id];
+        if(v!==null) areas[q.area].push(v);
+      }
+      const areaAverages = {};
+      let totalSum=0; let totalCount=0;
+      for(let i=1;i<=5;i++){
+        const arr = areas[i];
+        const avg = arr.length? (arr.reduce((a,b)=>a+b,0)/arr.length):0;
+        areaAverages[i]= {avg: avg, count: arr.length};
+        totalSum += arr.reduce((a,b)=>a+b,0);
+        totalCount += arr.length;
+      }
+      const overall = totalCount? (totalSum/totalCount):0;
+      return {areaAverages, overall};
+    }
+
+    function levelFromAvg(avg){
+      if(avg===0) return {label:'Sem respostas', color:'#9ca3af'};
+      if(avg<=1.66) return {label:'Iniciante', color:'#f97316'};
+      if(avg<=2.33) return {label:'Intermediário', color:'#f59e0b'};
+      return {label:'Avançado', color:'#10b981'};
+    }
+
+    // Chart setup
+    let radarChart;
+    function renderChart(values){
+      const ctx = document.getElementById('radarChart').getContext('2d');
+      if(radarChart) radarChart.destroy();
+      radarChart = new Chart(ctx, {
+        type: 'radar',
+        data: {
+          labels: ['Literacia da informação','Comunicação e colaboração','Criação de conteúdo','Segurança','Resolução de problemas'],
+          datasets: [{
+            label: 'Nível (1-3)',
+            data: values,
+            fill: true,
+            tension: 0.2,
+            backgroundColor: 'rgba(6,182,212,0.15)',
+            borderColor: 'rgba(6,182,212,0.9)',
+            pointBackgroundColor: 'rgba(6,182,212,0.9)'
+          }]
+        },
+        options: {
+          scales: {
+            r: {min:0,max:3, ticks:{stepSize:0.5, showLabelBackdrop:true, color:'#cbd5e1'}, pointLabels:{color:'#e6eef8'}}
+          },
+          plugins: {legend:{display:false}}
+        }
+      });
+    }
+
+    // recommendations
+    function recommendationsText(areaAverages){
+      const recs = [];
+      for(let i=1;i<=5;i++){
+        const avg = areaAverages[i].avg;
+        const level = levelFromAvg(avg).label;
+        if(level==='Iniciante') recs.push(`Área ${i}: ${level} — Considere cursos básicos, prática guiada e desafios práticos para aumentar a confiança.`);
+        else if(level==='Intermediário') recs.push(`Área ${i}: ${level} — Consolide com projetos práticos e materiais específicos (tutoriais, oficinas).`);
+        else if(level==='Avançado') recs.push(`Área ${i}: ${level} — Você pode liderar iniciativas, ensinar e aprofundar com certificações/portfólios.`);
+        else recs.push(`Área ${i}: Sem respostas suficientes.`);
+      }
+      return recs.join('<br>');
+    }
+
+    // UI actions
+    document.getElementById('submitBtn').addEventListener('click', ()=>{
+      const answers = readAnswers();
+      // check at least one answer per area? We'll allow partial but show warning if missing
+      const missing = Object.values(answers).filter(v=>v===null).length;
+      if(missing>0){
+        if(!confirm(`Você deixou ${missing} pergunta(s) sem resposta. Deseja continuar e calcular com as respostas fornecidas?`)) return;
+      }
+      const {areaAverages, overall} = computeScores(answers);
+      // show results
+      document.getElementById('output').style.display='block';
+      const areaScoresDiv = document.getElementById('areaScores'); areaScoresDiv.innerHTML='';
+      const radarValues = [];
+      for(let i=1;i<=5;i++){
+        const avg = Number(areaAverages[i].avg.toFixed(2));
+        const lvl = levelFromAvg(avg);
+        radarValues.push(avg);
+        const el = document.createElement('div');
+        el.style.marginTop='8px';
+        el.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><div><strong>Área ${i}</strong> <span class="small">(média de ${areaAverages[i].count} pergunta(s))</span></div><div><span class="badge">${avg.toFixed(2)}</span> <span style="margin-left:8px;color:${lvl.color};font-weight:700">${lvl.label}</span></div></div>`;
+        areaScoresDiv.appendChild(el);
+      }
+      document.getElementById('overall').textContent = overall? overall.toFixed(2) : '---';
+      document.getElementById('recommendations').innerHTML = recommendationsText(areaAverages);
+      renderChart(radarValues);
+      // scroll to results
+      document.getElementById('output').scrollIntoView({behavior:'smooth'});
+    });
+
+    document.getElementById('resetBtn').addEventListener('click', ()=>{
+      if(!confirm('Resetar todas as respostas?')) return;
+      document.querySelectorAll('input[type=radio]').forEach(r=>r.checked=false);
+      document.getElementById('output').style.display='none';
+    });
+
+    // small accessibility: allow keyboard to check first option by pressing number keys 1-3 when focused on a question
+    document.addEventListener('keydown', (e)=>{
+      if(document.activeElement && document.activeElement.closest('.q')){
+        if(['1','2','3'].includes(e.key)){
+          const qDiv = document.activeElement.closest('.q');
+          const name = qDiv.querySelector('input[type=radio]').name;
+          const toCheck = document.querySelector(`input[name="${name}"][value="${e.key}"]`);
+          if(toCheck) toCheck.checked = true;
+        }
+      }
+    });
+
+  </script>
+</body>
+</html>
+
